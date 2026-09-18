@@ -11,16 +11,29 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: rust-src
-
-      - name: Placeholder
+      - name: Install build dependencies
         run: |
-          echo "Curs OS build pipeline placeholder"
-          echo "Once the kernel, bootloader, and shell are further along,"
-          echo "this action will produce a bootable ISO artifact."
-          echo "For now it just confirms the repo builds cleanly."
+          sudo apt-get update
+          sudo apt-get install -y nasm xorriso
+
+      - name: Build bootloader + ISO
+        run: |
+          cd bootloader
+          bash build.sh
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: curs-os-iso
+          path: curs-os.iso
+          retention-days: 14
+
+      - name: Upload raw disk image
+        uses: actions/upload-artifact@v4
+        with:
+          name: curs-img
+          path: bootloader/curs.img
+          retention-days: 14
