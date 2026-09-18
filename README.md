@@ -22,22 +22,47 @@ Example:
 ```
 
 - Focus on clarity, reliability, and not fighting the user
-- Long-term goal: bootable ISO with a usable environment
-
-## Architecture (planned)
-
-1. **Stage 1** – Tiny assembly boot sector (512 bytes)
-2. **Stage 2** – Larger bootloader with a pure VGA text-mode TUI menu
-3. **Kernel** – Freestanding Rust kernel
-4. **Shell** – The `curs` shell
 
 ## Current Status
 
-Early foundation + decision locked: we are building our own bootloader with a custom TUI instead of using an existing one.
+**Bootable ISO exists.**
 
-## Building
+The custom BIOS bootloader with full TUI menu is working and can be turned into a bootable ISO.
 
-(Build instructions and ISO generation will be added as the bootloader and kernel take shape.)
+### Bootloader features right now
+- Stage 1: classic 512-byte boot sector
+- Stage 2: pure VGA text-mode TUI
+  - Arrow keys to navigate
+  - Enter to select
+  - Options: Boot Curs OS / Boot with Debug / Reboot / About
+
+## Building the ISO
+
+Requirements: `nasm` and `xorriso`
+
+```bash
+cd bootloader
+bash build.sh
+```
+
+This produces:
+- `bootloader/curs.img` (raw disk image)
+- `curs-os.iso` (bootable ISO)
+
+### Testing
+
+```bash
+qemu-system-x86_64 -cdrom curs-os.iso
+# or
+qemu-system-x86_64 -drive format=raw,file=bootloader/curs.img
+```
+
+## Architecture
+
+1. **Stage 1** – Tiny assembly boot sector (512 bytes)
+2. **Stage 2** – Larger bootloader with pure VGA text-mode TUI menu
+3. **Kernel** – Freestanding Rust kernel (next)
+4. **Shell** – The `curs` shell
 
 ## License
 
