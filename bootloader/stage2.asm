@@ -1,24 +1,29 @@
-; Curs OS - Stage 2 Bootloader with TUI
-; Pure VGA text-mode menu (80x25)
-; Arrow keys + Enter to select
+; Curs OS - Stage 2 Bootloader TUI
+; Debian-installer inspired single-selection dialog
 
 [bits 16]
 [org 0x8000]
 
-; VGA text buffer segment
-VGA_SEG     equ 0xB800
+VGA_SEG      equ 0xB800
 
-; Colors
-ATTR_NORMAL equ 0x07        ; light grey on black
-ATTR_SELECT equ 0x70        ; black on light grey (highlight)
-ATTR_TITLE  equ 0x0F        ; bright white
-ATTR_BORDER equ 0x08        ; dark grey
+; Attributes
+ATTR_NORMAL  equ 0x07      ; light grey on black
+ATTR_DIM     equ 0x08      ; dark grey
+ATTR_TITLE   equ 0x0F      ; bright white
+ATTR_SELECT  equ 0x70      ; black on light grey (strong highlight)
+ATTR_BOX     equ 0x07      ; box border
+ATTR_BG      equ 0x00      ; black background fill
+ATTR_HINT    equ 0x0E      ; yellow
 
-; Menu items
-NUM_ITEMS   equ 4
+NUM_ITEMS    equ 4
+
+; Box geometry (centered-ish)
+BOX_TOP      equ 5
+BOX_LEFT     equ 18
+BOX_WIDTH    equ 44
+BOX_HEIGHT   equ 14
 
 start:
-    ; Set 80x25 text mode
     mov ax, 0x0003
     int 0x10
 
@@ -27,33 +32,33 @@ start:
     mov cx, 0x2000
     int 0x10
 
-    ; Initial selection
     mov byte [selected], 0
-
-    call draw_ui
+    call draw_all
 
 .main_loop:
     call wait_key
-    cmp ah, 0x48            ; Up arrow
+    cmp ah, 0x48            ; Up
     je .up
-    cmp ah, 0x50            ; Down arrow
+    cmp ah, 0x50            ; Down
     je .down
     cmp al, 0x0D            ; Enter
     je .enter
+    cmp al, 0x1B            ; Esc = reboot for now
+    je do_reboot
     jmp .main_loop
 
 .up:
     cmp byte [selected], 0
     je .main_loop
     dec byte [selected]
-    call draw_ui
+    call draw_menu_only
     jmp .main_loop
 
 .down:
     cmp byte [selected], NUM_ITEMS-1
     je .main_loop
     inc byte [selected]
-    call draw_ui
+    call draw_menu_only
     jmp .main_loop
 
 .enter:
@@ -68,13 +73,14 @@ start:
     je show_about
     jmp .main_loop
 
-; -------------------- UI Drawing --------------------
+; ======================== DRAWING ========================
 
-draw_ui:
+draw_all:
     call clear_screen
-    call draw_border
+    call draw_box
     call draw_title
-    call draw_menu
+    call draw_menu_only
+    call draw_hint
     ret
 
 clear_screen:
@@ -83,90 +89,140 @@ clear_screen:
     mov es, ax
     xor di, di
     mov cx, 80*25
-    mov ax, (ATTR_NORMAL << 8) | ' '
+    mov ax, (ATTR_BG << 8) | ' '
     rep stosw
     pop es
     ret
 
-draw_border:
+; Draw a double-line style box
+draw_box:
     push es
     mov ax, VGA_SEG
     mov es, ax
 
-    ; Top line
-    mov di, 1*160 + 2
-    mov cx, 78
-    mov ax, (ATTR_BORDER << 8) | 0xC4
+    ; Top border
+    mov di, BOX_TOP*160 + BOX_LEFT*2
+    mov ax, (ATTR_BOX << 8) | 0xC9      ; ╔
+    stosw
+    mov cx, BOX_WIDTH-2
+    mov ax, (ATTR_BOX << 8) | 0xCD      ; ═
 .top:
     stosw
     loop .top
+    mov ax, (ATTR_BOX << 8) | 0xBB      ; ╗
+    stosw
 
-    ; Bottom line
-    mov di, 23*160 + 2
-    mov cx, 78
-    mov ax, (ATTR_BORDER << 8) | 0xC4
+    ; Side borders + fill
+    mov cx, BOX_HEIGHT-2
+    mov bx, 1
+.sides:
+    push cx
+    mov ax, BOX_TOP
+    add ax, bx
+    imul ax, 160
+    add ax, BOX_LEFT*2
+    mov di, ax
+
+    mov ax, (ATTR_BOX << 8) | 0xBA      ; ║
+    stosw
+
+    ; fill inside
+    push cx
+    mov cx, BOX_WIDTH-2
+    mov ax, (ATTR_NORMAL << 8) | ' '
+.fill:
+    stosw
+    loop .fill
+    pop cx
+
+    mov ax, (ATTR_BOX << 8) | 0xBA      ; ║
+    stosw
+
+    inc bx
+    pop cx
+    loop .sides
+
+    ; Bottom border
+    mov ax, BOX_TOP + BOX_HEIGHT - 1
+    imul ax, 160
+    add ax, BOX_LEFT*2
+    mov di, ax
+    mov ax, (ATTR_BOX << 8) | 0xC8      ; ╚
+    stosw
+    mov cx, BOX_WIDTH-2
+    mov ax, (ATTR_BOX << 8) | 0xCD
 .bot:
     stosw
     loop .bot
+    mov ax, (ATTR_BOX << 8) | 0xBC      ; ╝
+    stosw
 
     pop es
     ret
 
 draw_title:
     mov si, title_str
-    mov dh, 3
-    mov dl, 28
+    mov dh, BOX_TOP + 1
+    mov dl, BOX_LEFT + 12
     mov bl, ATTR_TITLE
     call print_at
     ret
 
-draw_menu:
-    ; Item 0 - Boot Curs OS
+draw_menu_only:
+    ; Item 0
     mov si, item0
-    mov dh, 8
-    mov dl, 26
+    mov dh, BOX_TOP + 4
+    mov dl, BOX_LEFT + 4
     mov bl, ATTR_NORMAL
     cmp byte [selected], 0
-    jne .p0
+    jne .i0
     mov bl, ATTR_SELECT
-.p0:
+.i0:
     call print_at
 
-    ; Item 1 - Boot with Debug
+    ; Item 1
     mov si, item1
-    mov dh, 10
-    mov dl, 26
+    mov dh, BOX_TOP + 6
+    mov dl, BOX_LEFT + 4
     mov bl, ATTR_NORMAL
     cmp byte [selected], 1
-    jne .p1
+    jne .i1
     mov bl, ATTR_SELECT
-.p1:
+.i1:
     call print_at
 
-    ; Item 2 - Reboot
+    ; Item 2
     mov si, item2
-    mov dh, 12
-    mov dl, 26
+    mov dh, BOX_TOP + 8
+    mov dl, BOX_LEFT + 4
     mov bl, ATTR_NORMAL
     cmp byte [selected], 2
-    jne .p2
+    jne .i2
     mov bl, ATTR_SELECT
-.p2:
+.i2:
     call print_at
 
-    ; Item 3 - About
+    ; Item 3
     mov si, item3
-    mov dh, 14
-    mov dl, 26
+    mov dh, BOX_TOP + 10
+    mov dl, BOX_LEFT + 4
     mov bl, ATTR_NORMAL
     cmp byte [selected], 3
-    jne .p3
+    jne .i3
     mov bl, ATTR_SELECT
-.p3:
+.i3:
     call print_at
     ret
 
-; print_at: SI = string, DH = row, DL = col, BL = attribute
+draw_hint:
+    mov si, hint_str
+    mov dh, BOX_TOP + BOX_HEIGHT - 2
+    mov dl, BOX_LEFT + 6
+    mov bl, ATTR_HINT
+    call print_at
+    ret
+
+; SI=string, DH=row, DL=col, BL=attr
 print_at:
     push es
     push ax
@@ -176,7 +232,6 @@ print_at:
     mov ax, VGA_SEG
     mov es, ax
 
-    ; di = row * 160 + col * 2
     movzx ax, dh
     imul ax, 160
     movzx bx, dl
@@ -184,13 +239,13 @@ print_at:
     add ax, bx
     mov di, ax
 
-.print_loop:
+.loop:
     lodsb
     or al, al
     jz .done
     mov ah, bl
     stosw
-    jmp .print_loop
+    jmp .loop
 .done:
     pop di
     pop bx
@@ -200,70 +255,79 @@ print_at:
 
 wait_key:
     xor ah, ah
-    int 0x16            ; returns AH=scancode, AL=ascii
+    int 0x16
     ret
 
-; -------------------- Actions --------------------
+; ======================== ACTIONS ========================
 
 boot_curs:
+    call clear_screen
     mov si, msg_boot
-    mov dh, 20
+    mov dh, 12
     mov dl, 28
     mov bl, ATTR_TITLE
     call print_at
-    ; TODO: Load kernel and jump
     jmp $
 
 boot_debug:
+    call clear_screen
     mov si, msg_debug
-    mov dh, 20
+    mov dh, 12
     mov dl, 26
     mov bl, ATTR_TITLE
     call print_at
-    ; TODO: Load kernel with debug flag
     jmp $
 
 do_reboot:
-    ; Jump to reset vector
     db 0xEA
     dw 0x0000
     dw 0xFFFF
 
 show_about:
     call clear_screen
+    call draw_box
     mov si, about1
-    mov dh, 8
-    mov dl, 28
+    mov dh, BOX_TOP + 4
+    mov dl, BOX_LEFT + 10
     mov bl, ATTR_TITLE
     call print_at
     mov si, about2
-    mov dh, 10
-    mov dl, 20
+    mov dh, BOX_TOP + 6
+    mov dl, BOX_LEFT + 4
     mov bl, ATTR_NORMAL
     call print_at
     mov si, about3
-    mov dh, 12
-    mov dl, 24
+    mov dh, BOX_TOP + 8
+    mov dl, BOX_LEFT + 6
     mov bl, ATTR_NORMAL
+    call print_at
+    mov si, about4
+    mov dh, BOX_TOP + 11
+    mov dl, BOX_LEFT + 8
+    mov bl, ATTR_HINT
     call print_at
 
     call wait_key
-    call draw_ui
+    call draw_all
     jmp start.main_loop
 
-; -------------------- Data --------------------
+; ======================== DATA ========================
 
 selected db 0
 
-title_str db "Curs Bootloader", 0
-item0     db "  Boot Curs OS           ", 0
-item1     db "  Boot with Debug        ", 0
-item2     db "  Reboot                 ", 0
-item3     db "  About Curs             ", 0
+title_str db " Curs Bootloader ", 0
+
+item0     db "  Boot Curs OS              ", 0
+item1     db "  Boot with Debug           ", 0
+item2     db "  Reboot                    ", 0
+item3     db "  About Curs                ", 0
+
+hint_str  db "Arrow keys to select  -  Enter to confirm", 0
 
 msg_boot  db "Loading Curs OS...", 0
 msg_debug db "Loading with debug...", 0
 
-about1    db "Curs OS Bootloader", 0
-about2    db "Custom TUI - No GRUB, No Limine", 0
-about3    db "Press any key to return", 0
+about1    db "Curs OS", 0
+about2    db "Custom bootloader - no GRUB, no Limine", 0
+about3    db "Pure VGA text-mode TUI", 0
+about4    db "Press any key to return", 0
