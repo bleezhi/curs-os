@@ -1,0 +1,26 @@
+name: Build Curs OS
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Placeholder
+        run: |
+          echo "Curs OS build pipeline placeholder"
+          echo "Once the kernel, bootloader, and shell are further along,"
+          echo "this action will produce a bootable ISO artifact."
+          echo "For now it just confirms the repo builds cleanly."
