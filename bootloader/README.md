@@ -2,21 +2,31 @@
 
 Custom two-stage bootloader with its own text-mode TUI.
 
-## Stages
+## Current Status (BIOS / Legacy)
 
 ### Stage 1 (`stage1.asm`)
 - Classic 512-byte boot sector
-- Loaded by the BIOS at 0x7C00
-- Loads Stage 2 into memory and jumps to it
+- Loads Stage 2 from disk into memory at `0x8000`
+- Jumps to Stage 2
 
-### Stage 2 (TUI)
-- Larger second stage
-- Draws a clean text-mode menu directly to VGA memory (0xB8000)
-- Keyboard input (arrow keys + Enter)
-- Options:
+### Stage 2 (`stage2.asm`) — **TUI is live**
+- Pure VGA text-mode interface (80×25)
+- Arrow keys to move, Enter to select
+- Menu options:
   - Boot Curs OS
-  - Boot with debug output
+  - Boot with Debug
   - Reboot
-  - About
+  - About Curs
+- Highlighted selection, clean borders, no external bootloader involved
 
-No external bootloader. Everything is ours.
+## UEFI Support (planned)
+
+UEFI is a completely different world (no 512-byte sector, PE executables, EFI protocols).
+
+Planned approach:
+- Keep the current BIOS path working
+- Add a separate UEFI entry point later (`bootloader/uefi/`)
+- Share as much of the TUI design language as possible
+- Goal: one ISO that can boot on both legacy BIOS and modern UEFI systems
+
+For now the focus stays on finishing a solid BIOS TUI boot path that can actually hand off to the kernel.
