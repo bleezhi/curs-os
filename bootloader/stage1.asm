@@ -28,8 +28,8 @@ start:
     mov dl, [boot_drive]
     int 0x13
 
-    ; Try to read Stage 2 (16 sectors starting at sector 2)
-    mov ax, 0x0200 + 16     ; AH=02 read, AL=16 sectors
+    ; Try to read Stage 2 (32 sectors starting at sector 2) - room for VESA code
+    mov ax, 0x0200 + 32     ; AH=02 read, AL=32 sectors
     mov ch, 0               ; cylinder 0
     mov cl, 2               ; starting sector 2
     mov dh, 0               ; head 0
