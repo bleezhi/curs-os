@@ -1,23 +1,26 @@
 ; Curs OS - Stage 2 Bootloader TUI
-; Debian-installer inspired single-selection dialog
+; Debian-style dialog with custom colors
 
 [bits 16]
 [org 0x8000]
 
 VGA_SEG      equ 0xB800
 
-; Attributes
-ATTR_NORMAL  equ 0x07      ; light grey on black
-ATTR_DIM     equ 0x08      ; dark grey
-ATTR_TITLE   equ 0x0F      ; bright white
-ATTR_SELECT  equ 0x70      ; black on light grey (strong highlight)
-ATTR_BOX     equ 0x07      ; box border
-ATTR_BG      equ 0x00      ; black background fill
-ATTR_HINT    equ 0x0E      ; yellow
+; Color attributes (bg << 4 | fg)
+; 0=black 1=blue 2=green 3=cyan 4=red 5=magenta 6=brown 7=lightgrey
+; 8=darkgrey 9=lightblue ... 15=brightwhite
+
+ATTR_BG      equ 0x17      ; light grey on blue   (whole screen background)
+ATTR_BOX     equ 0x7F      ; bright white on light grey  (box border - gray-white)
+ATTR_INSIDE  equ 0x1F      ; bright white on blue        (inside box / selection window)
+ATTR_TITLE   equ 0x1F      ; bright white on blue
+ATTR_SELECT  equ 0x40      ; black on red                (selected - red "outline" feel)
+ATTR_NORMAL  equ 0x17      ; light grey on blue          (unselected - gray text on low blue)
+ATTR_HINT    equ 0x1E      ; yellow on blue
 
 NUM_ITEMS    equ 4
 
-; Box geometry (centered-ish)
+; Box geometry
 BOX_TOP      equ 5
 BOX_LEFT     equ 18
 BOX_WIDTH    equ 44
@@ -43,7 +46,7 @@ start:
     je .down
     cmp al, 0x0D            ; Enter
     je .enter
-    cmp al, 0x1B            ; Esc = reboot for now
+    cmp al, 0x1B            ; Esc
     je do_reboot
     jmp .main_loop
 
@@ -94,13 +97,12 @@ clear_screen:
     pop es
     ret
 
-; Draw a double-line style box
 draw_box:
     push es
     mov ax, VGA_SEG
     mov es, ax
 
-    ; Top border
+    ; Top border (gray-white)
     mov di, BOX_TOP*160 + BOX_LEFT*2
     mov ax, (ATTR_BOX << 8) | 0xC9      ; ╔
     stosw
@@ -112,7 +114,7 @@ draw_box:
     mov ax, (ATTR_BOX << 8) | 0xBB      ; ╗
     stosw
 
-    ; Side borders + fill
+    ; Sides + blue inside fill
     mov cx, BOX_HEIGHT-2
     mov bx, 1
 .sides:
@@ -126,16 +128,15 @@ draw_box:
     mov ax, (ATTR_BOX << 8) | 0xBA      ; ║
     stosw
 
-    ; fill inside
     push cx
     mov cx, BOX_WIDTH-2
-    mov ax, (ATTR_NORMAL << 8) | ' '
+    mov ax, (ATTR_INSIDE << 8) | ' '    ; blue selection window
 .fill:
     stosw
     loop .fill
     pop cx
 
-    mov ax, (ATTR_BOX << 8) | 0xBA      ; ║
+    mov ax, (ATTR_BOX << 8) | 0xBA
     stosw
 
     inc bx
@@ -217,12 +218,11 @@ draw_menu_only:
 draw_hint:
     mov si, hint_str
     mov dh, BOX_TOP + BOX_HEIGHT - 2
-    mov dl, BOX_LEFT + 6
+    mov dl, BOX_LEFT + 5
     mov bl, ATTR_HINT
     call print_at
     ret
 
-; SI=string, DH=row, DL=col, BL=attr
 print_at:
     push es
     push ax
@@ -288,7 +288,7 @@ show_about:
     call draw_box
     mov si, about1
     mov dh, BOX_TOP + 4
-    mov dl, BOX_LEFT + 10
+    mov dl, BOX_LEFT + 14
     mov bl, ATTR_TITLE
     call print_at
     mov si, about2
@@ -298,7 +298,7 @@ show_about:
     call print_at
     mov si, about3
     mov dh, BOX_TOP + 8
-    mov dl, BOX_LEFT + 6
+    mov dl, BOX_LEFT + 8
     mov bl, ATTR_NORMAL
     call print_at
     mov si, about4
