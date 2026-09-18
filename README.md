@@ -7,8 +7,9 @@ No blue screens. No "is not recognized as an internal or external command". Just
 ## Vision
 
 - Written entirely in Rust for memory safety
+- **Custom bootloader** with its own text-mode TUI (no GRUB, no Limine)
 - Custom shell called **curs** (not a cmd.exe or bash clone)
-- Official prompt style:
+- Official shell prompt style:
 
 ```
 (%USER%@%HOSTNAME%, %DIR)>
@@ -23,15 +24,20 @@ Example:
 - Focus on clarity, reliability, and not fighting the user
 - Long-term goal: bootable ISO with a usable environment
 
+## Architecture (planned)
+
+1. **Stage 1** – Tiny assembly boot sector (512 bytes)
+2. **Stage 2** – Larger bootloader with a pure VGA text-mode TUI menu
+3. **Kernel** – Freestanding Rust kernel
+4. **Shell** – The `curs` shell
+
 ## Current Status
 
-This is the early foundation. The project is being structured as a freestanding Rust kernel.
-
-A full bootable OS (with proper bootloader, memory management, filesystem, and the custom shell) is a large undertaking. We are building it step by step.
+Early foundation + decision locked: we are building our own bootloader with a custom TUI instead of using an existing one.
 
 ## Building
 
-(Build instructions and ISO generation will be added as the kernel takes shape. The goal is to have a one-command / GitHub Action path that produces a bootable image.)
+(Build instructions and ISO generation will be added as the bootloader and kernel take shape.)
 
 ## License
 
